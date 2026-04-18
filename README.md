@@ -1,5 +1,5 @@
 current progress
-![](gallery/gallery/Metropolis_Co2vQgGq9s.png)
+![](gallery/Metropolis_Co2vQgGq9s.png)
 
 ## Prerequisites
 
