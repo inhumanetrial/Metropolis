@@ -26,6 +26,6 @@ cmake --build .
 ```
 ## References
 
-https://nsgg.tistory.com/367 - drawing triangles
-https://www.youtube.com/watch?v=fK1RPmF_zjQ - Moller Trumbore Algorithm
-https://vkguide.dev - vulkan guide
+* https://nsgg.tistory.com/367 - drawing triangles
+* https://www.youtube.com/watch?v=fK1RPmF_zjQ - Moller Trumbore Algorithm
+* https://vkguide.dev - vulkan guide
