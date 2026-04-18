@@ -23,7 +23,7 @@ cd build
 # 3. Generate CMake cache and build
 cmake ..
 cmake --build .
-
+```
 ## References
 
 https://nsgg.tistory.com/367 - drawing triangles
