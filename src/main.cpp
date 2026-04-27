@@ -31,6 +31,7 @@ private:
     Camera camera; 
     float deltaTime = 0.0f; 
     float lastFrame = 0.0f;
+    float frameCount = 1.0f;
 
     void initWindow() {
         glfwInit();
@@ -56,6 +57,7 @@ private:
             engine->camera.lastMouseX = (float)xpos;
             engine->camera.lastMouseY = (float)ypos;
             engine->camera.processMouseMovement(xoffset, yoffset);
+            engine->frameCount = 1.0f;
         });
     }
 
@@ -67,6 +69,7 @@ private:
 
     void mainLoop() {
         lastFrame = (float)glfwGetTime();
+        // float frameCount = 1.0f;
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
             float currentFrame = (float)glfwGetTime();
@@ -81,10 +84,15 @@ private:
 
     void updateCamera(float dt) {
         float moveSpeed = 5.0f * dt;
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera.position += camera.forward * moveSpeed;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera.position -= camera.forward * moveSpeed;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera.position -= camera.right * moveSpeed;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera.position += camera.right * moveSpeed;
+        bool cameraMoved = false;
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera.position += camera.forward * moveSpeed; cameraMoved = true;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera.position -= camera.forward * moveSpeed; cameraMoved = true;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera.position -= camera.right * moveSpeed; cameraMoved = true;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera.position += camera.right * moveSpeed; cameraMoved = true;
+
+        if (cameraMoved) {
+            frameCount = 1.0f;
+        }
 
         CameraUBO ubo{};
         ubo.position = glm::vec4(camera.position, 1.0f);
@@ -105,7 +113,8 @@ private:
         vkResetFences(context->getDevice(), 1, &inFlightFence);
 
         VkCommandBuffer cmdBuffer = context->beginCommandBuffer();
-        computepass->dispatch(cmdBuffer, WIDTH, HEIGHT);
+        computepass->dispatch(cmdBuffer, WIDTH, HEIGHT, frameCount);
+        frameCount +=1.0f;
         computepass->copyToSwapchain(cmdBuffer, imageIndex);
         vkEndCommandBuffer(cmdBuffer);
 

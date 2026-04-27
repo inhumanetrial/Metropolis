@@ -17,6 +17,7 @@ ComputePass::ComputePass(VulkanContext* context, Swapchain* swapchain)
     // Initialize the  storage image 
     VkCommandBuffer cmd = context->beginSingleTimeCommands();
     transitionImageLayout(cmd, storageImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    transitionImageLayout(cmd, accumImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     context->endSingleTimeCommands(cmd);
 }
 
@@ -29,6 +30,9 @@ ComputePass::~ComputePass() {
     vkDestroyImageView(device, storageImageView, nullptr);
     vkDestroyImage(device, storageImage, nullptr);
     vkFreeMemory(device, storageImageMemory, nullptr);
+    vkDestroyImageView(device, accumImageView, nullptr);
+    vkDestroyImage(device, accumImage, nullptr);
+    vkFreeMemory(device, accumImageMemory, nullptr);
     vkDestroyBuffer(device, cameraBuffer, nullptr);
     vkFreeMemory(device, cameraBufferMemory, nullptr);
     vkDestroyBuffer(device, sceneBuffer, nullptr);
@@ -36,10 +40,10 @@ ComputePass::~ComputePass() {
 }
 
     // Dispatch shader into thread groups
-void ComputePass::dispatch(VkCommandBuffer cmdBuffer, uint32_t width, uint32_t height) {
+void ComputePass::dispatch(VkCommandBuffer cmdBuffer, uint32_t width, uint32_t height, float frameCount) {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-    
+    vkCmdPushConstants(cmdBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &frameCount);  
     vkCmdDispatch(cmdBuffer, (width + 15) / 16, (height + 15) / 16, 1);
 }
 
@@ -115,10 +119,51 @@ void ComputePass::createStorageImage() {
     viewInfo.subresourceRange.layerCount = 1;
 
     if (vkCreateImageView(device, &viewInfo, nullptr, &storageImageView) != VK_SUCCESS) throw std::runtime_error("Failed to create texture image view!");
+
+// accumulation image
+VkImageCreateInfo accumImageInfo{};
+accumImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+accumImageInfo.imageType = VK_IMAGE_TYPE_2D;
+accumImageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT; 
+accumImageInfo.extent.width = extent.width;
+accumImageInfo.extent.height = extent.height;
+accumImageInfo.extent.depth = 1;
+accumImageInfo.mipLevels = 1;
+accumImageInfo.arrayLayers = 1;
+accumImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+accumImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+accumImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT; 
+if (vkCreateImage(context->getDevice(), &accumImageInfo, nullptr, &accumImage) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create accumulation image!");
+}
+
+VkMemoryRequirements accumMemReqs;
+vkGetImageMemoryRequirements(context->getDevice(), accumImage, &accumMemReqs);
+
+VkMemoryAllocateInfo accumAllocInfo{};
+accumAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+accumAllocInfo.allocationSize = accumMemReqs.size;
+accumAllocInfo.memoryTypeIndex = findMemoryType(accumMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+vkAllocateMemory(context->getDevice(), &accumAllocInfo, nullptr, &accumImageMemory);
+vkBindImageMemory(context->getDevice(), accumImage, accumImageMemory, 0);
+
+VkImageViewCreateInfo accumViewInfo{};
+accumViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+accumViewInfo.image = accumImage;
+accumViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+accumViewInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+accumViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+accumViewInfo.subresourceRange.baseMipLevel = 0;
+accumViewInfo.subresourceRange.levelCount = 1;
+accumViewInfo.subresourceRange.baseArrayLayer = 0;
+accumViewInfo.subresourceRange.layerCount = 1;
+
+vkCreateImageView(context->getDevice(), &accumViewInfo, nullptr, &accumImageView);
 }
 
 void ComputePass::createDescriptorSetLayout() {
-    std::vector<VkDescriptorSetLayoutBinding> bindings(3);
+    std::vector<VkDescriptorSetLayoutBinding> bindings(4);
 
     // Binding 0: Storage Image
     bindings[0].binding = 0;
@@ -139,6 +184,13 @@ void ComputePass::createDescriptorSetLayout() {
     bindings[2].descriptorCount = 1;
     bindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     bindings[2].pImmutableSamplers = nullptr;
+
+    // Binding 3: Accum image
+    bindings[3].binding = 3;
+    bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    bindings[3].descriptorCount = 1;
+    bindings[3].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    bindings[3].pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -165,6 +217,14 @@ void ComputePass::createComputePipeline() {
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
+    VkPushConstantRange pushConstant{};
+    pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    pushConstant.offset = 0;
+    pushConstant.size = sizeof(float);
+
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
+
     if (vkCreatePipelineLayout(context->getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create compute pipeline layout!");
     }
@@ -186,7 +246,7 @@ void ComputePass::createDescriptorPoolAndSets() {
     std::array<VkDescriptorPoolSize, 3> poolSizes{};
     
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    poolSizes[0].descriptorCount = 1;
+    poolSizes[0].descriptorCount = 2;
 
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[1].descriptorCount = 1;
@@ -229,7 +289,12 @@ void ComputePass::createDescriptorPoolAndSets() {
     sceneBufferInfo.offset = 0;
     sceneBufferInfo.range = VK_WHOLE_SIZE;
 
-    std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+    VkDescriptorImageInfo accumInfo{};
+    accumInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    accumInfo.imageView = accumImageView;
+    accumInfo.sampler = VK_NULL_HANDLE;
+
+    std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
 
     // Ticket 1: The Image 
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -261,7 +326,16 @@ void ComputePass::createDescriptorPoolAndSets() {
     descriptorWrites[2].pBufferInfo = &sceneBufferInfo; 
     descriptorWrites[2].pTexelBufferView = nullptr;
 
-    vkUpdateDescriptorSets(context->getDevice(), 3, descriptorWrites.data(), 0, nullptr);
+    // Ticket 4: accumimage
+    descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[3].dstSet = descriptorSet;
+    descriptorWrites[3].dstBinding = 3;
+    descriptorWrites[3].dstArrayElement = 0;
+    descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites[3].descriptorCount = 1;
+    descriptorWrites[3].pImageInfo = &accumInfo;
+
+    vkUpdateDescriptorSets(context->getDevice(), 4, descriptorWrites.data(), 0, nullptr);
 }
 
 // Utility Functions

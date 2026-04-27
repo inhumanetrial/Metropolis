@@ -16,7 +16,7 @@ public:
     ~ComputePass();
 
     // The functions called every frame in main.cpp
-    void dispatch(VkCommandBuffer cmdBuffer, uint32_t width, uint32_t height);
+    void dispatch(VkCommandBuffer cmdBuffer, uint32_t width, uint32_t height, float frameCount);
     void copyToSwapchain(VkCommandBuffer cmdBuffer, uint32_t swapchainImageIndex);
     void updateCamera(const CameraUBO& ubo);
 
@@ -37,6 +37,11 @@ private:
     VkImage storageImage;
     VkDeviceMemory storageImageMemory;
     VkImageView storageImageView;
+
+    VkImage accumImage;
+    VkDeviceMemory accumImageMemory;
+    VkImageView accumImageView;
+    
     VkFormat storageFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
     // Setup functions
