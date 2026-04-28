@@ -26,6 +26,7 @@ struct Object {
     vec4 v2;
     vec4 v3;
     vec4 colorAndType;
+    vec4 emission;
 };
 
 //struct Sphere {
@@ -63,7 +64,7 @@ float hitSphere(vec3 rayOrigin, vec3 rayDir, vec3 center, float radius) {
 float hitBox(vec3 ro, vec3 rd, vec3 center, vec3 extents, out vec3 outNormal) {
     vec3 minB = center - extents;
     vec3 maxB = center + extents;
-    vec3 invRd = 1.0 / rd;
+    vec3 invRd = 1.0 / (rd + vec3(0.00001));
     
     vec3 t0 = (minB - ro) * invRd;
     vec3 t1 = (maxB - ro) * invRd;
@@ -158,12 +159,17 @@ void main() {
                             uv.y * cam.up.xyz);
 
   //  vec3 finalColor = vec3(0.05, 0.05, 0.05); // Dark grey background
-    vec3 finalColor = vec3(0.0, 0.1, 0.3);
-    float closest_t = 999999.0; 
+  // vec3 finalColor = vec3(0.0, 0.1, 0.3);
+
+    vec3 throughput = vec3(1.0); 
+    vec3 finalColor = vec3(0.0); 
+
+for(int bounce = 0; bounce < 5; bounce++) {
+        float closest_t = 999999.0; 
     int hit_index = -1;
     vec3 best_normal = vec3(0.0);
-   
-for(int i = 0; i < scene.objects.length(); i++) {
+    
+    for(int i = 0; i < scene.objects.length(); i++) {
         
         int type = int(scene.objects[i].colorAndType.w);
         float t = -1.0;
@@ -187,12 +193,34 @@ for(int i = 0; i < scene.objects.length(); i++) {
         }
     } 
 
-    if(hit_index != -1) {
-        finalColor = scene.objects[hit_index].colorAndType.xyz;
-        vec3 lightDir = normalize(vec3(1.0, 1.0, -1.0)); 
-        float diffuse = max(dot(best_normal, lightDir), 0.1); 
-        finalColor *= diffuse;
-    }
+    // if(hit_index != -1) {
+    //     finalColor = scene.objects[hit_index].colorAndType.xyz;
+    //     vec3 lightDir = normalize(vec3(1.0, 1.0, -1.0)); 
+    //     float diffuse = max(dot(best_normal, lightDir), 0.1); 
+    //     finalColor *= diffuse;
+    // }
+           if(hit_index == -1) {
+            vec3 skyColor = vec3(0.05, 0.1, 0.3); 
+            finalColor += throughput * skyColor;
+            break;
+        }
+
+        vec3 objColor = scene.objects[hit_index].colorAndType.xyz;
+        vec3 emission = scene.objects[hit_index].emission.xyz;
+
+        finalColor += throughput * emission;
+        throughput *= objColor; 
+
+        vec3 hitPoint = rayOrigin + rayDir * closest_t;
+        rayOrigin = hitPoint + best_normal * 0.001; // Push it off the surface
+
+        vec3 randomDir = normalize(vec3(
+            randomFloat(seed) * 2.0 - 1.0,
+            randomFloat(seed) * 2.0 - 1.0,
+            randomFloat(seed) * 2.0 - 1.0
+        ));
+        rayDir = normalize(best_normal + randomDir);
+}
 
 // 
     vec4 oldColor = imageLoad(accumTarget, pixelCoords);
@@ -208,5 +236,5 @@ for(int i = 0; i < scene.objects.length(); i++) {
 
     imageStore(accumTarget,pixelCoords, vec4(blendedColor, 1.0));
     
-    imageStore(renderTarget, pixelCoords, vec4(blendedColor, 1.0));
+    imageStore(renderTarget, pixelCoords, vec4(blendedColor.b, blendedColor.g, blendedColor.r, 1.0));
 }

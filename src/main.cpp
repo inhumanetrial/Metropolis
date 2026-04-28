@@ -53,11 +53,13 @@ private:
                 engine->camera.firstMouse = false;
             }
             float xoffset = (float)xpos - engine->camera.lastMouseX;
-            float yoffset = engine->camera.lastMouseY - (float)ypos; 
+            float yoffset = (float)ypos - engine->camera.lastMouseY; 
             engine->camera.lastMouseX = (float)xpos;
             engine->camera.lastMouseY = (float)ypos;
             engine->camera.processMouseMovement(xoffset, yoffset);
-            engine->frameCount = 1.0f;
+            if (abs(xoffset) > 0.5f || abs(yoffset) > 0.5f) {
+            engine->frameCount = 1.0f; 
+        }
         });
     }
 
@@ -85,11 +87,12 @@ private:
     void updateCamera(float dt) {
         float moveSpeed = 5.0f * dt;
         bool cameraMoved = false;
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera.position += camera.forward * moveSpeed; cameraMoved = true;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera.position -= camera.forward * moveSpeed; cameraMoved = true;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera.position -= camera.right * moveSpeed; cameraMoved = true;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera.position += camera.right * moveSpeed; cameraMoved = true;
-
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {camera.position += camera.forward * moveSpeed; cameraMoved = true;}
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {camera.position -= camera.forward * moveSpeed; cameraMoved = true;}
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {camera.position -= camera.right * moveSpeed; cameraMoved = true;}
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {camera.position += camera.right * moveSpeed; cameraMoved = true;}
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {camera.position -= camera.up * moveSpeed; cameraMoved = true;}
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {camera.position += camera.up * moveSpeed; cameraMoved = true;}
         if (cameraMoved) {
             frameCount = 1.0f;
         }
@@ -114,6 +117,7 @@ private:
 
         VkCommandBuffer cmdBuffer = context->beginCommandBuffer();
         computepass->dispatch(cmdBuffer, WIDTH, HEIGHT, frameCount);
+//       std::cout << "Frame: " << frameCount << std::endl;
         frameCount +=1.0f;
         computepass->copyToSwapchain(cmdBuffer, imageIndex);
         vkEndCommandBuffer(cmdBuffer);

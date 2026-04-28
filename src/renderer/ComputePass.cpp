@@ -133,6 +133,7 @@ accumImageInfo.arrayLayers = 1;
 accumImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 accumImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 accumImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT; 
+
 if (vkCreateImage(context->getDevice(), &accumImageInfo, nullptr, &accumImage) != VK_SUCCESS) {
     throw std::runtime_error("Failed to create accumulation image!");
 }
@@ -148,6 +149,7 @@ accumAllocInfo.memoryTypeIndex = findMemoryType(accumMemReqs.memoryTypeBits, VK_
 vkAllocateMemory(context->getDevice(), &accumAllocInfo, nullptr, &accumImageMemory);
 vkBindImageMemory(context->getDevice(), accumImage, accumImageMemory, 0);
 
+// Create ImageView 
 VkImageViewCreateInfo accumViewInfo{};
 accumViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 accumViewInfo.image = accumImage;
@@ -458,42 +460,40 @@ void ComputePass::createSceneBuffer() {
    
 // x, y, z, radius | r, g, b, padding
 
-scene.push_back({
+// 0. The Floor (Green Ball)
+    scene.push_back({
         glm::vec4(0.0f, 101.0f, -5.0f, 100.0f), 
         glm::vec4(0.0f), glm::vec4(0.0f), glm::vec4(0.0f), 
-        glm::vec4(0.1f, 0.8f, 0.2f, 0.0f) // Type 0.0f
-    });
-    // Sphere 1: Blue, left
-scene.push_back({
-        glm::vec4(0.0f, 101.0f, -5.0f, 100.0f), 
-        glm::vec4(0.0f), glm::vec4(0.0f), glm::vec4(0.0f), 
-        glm::vec4(0.1f, 0.8f, 0.2f, 0.0f) // Type 0.0f
+        glm::vec4(0.1f, 0.8f, 0.2f, 0.0f), 
+        glm::vec4(0.0f)
     });
 
-    // 1. Blue Sphere (Left)
+    // 1. Blue Sphere
     scene.push_back({
-        glm::vec4(-2.5f, 0.0f, -5.0f, 1.0f), // Center & Radius
+        glm::vec4(-2.5f, 0.0f, -5.0f, 1.0f), 
         glm::vec4(0.0f), glm::vec4(0.0f), glm::vec4(0.0f), 
-        glm::vec4(0.1f, 0.2f, 0.8f, 0.0f) // Type 0.0f
+        glm::vec4(0.1f, 0.2f, 0.8f, 0.0f), 
+        glm::vec4(0.0f)
     });
 
-    // 2. Red Cuboid / Box (Center)
+    // 2. Red Box - GLOWING
     scene.push_back({
-        glm::vec4(0.0f, 0.0f, -5.0f, 0.0f), // Center
-        glm::vec4(0.8f, 1.2f, 0.8f, 0.0f),  // Half-Extents (Width, Height, Depth)
+        glm::vec4(0.0f, 0.0f, -5.0f, 0.0f), 
+        glm::vec4(0.8f, 1.2f, 0.8f, 0.0f),  
         glm::vec4(0.0f), glm::vec4(0.0f),   
-        glm::vec4(0.8f, 0.1f, 0.1f, 1.0f) // Type 1.0f
+        glm::vec4(0.8f, 0.1f, 0.1f, 1.0f), 
+        glm::vec4(15.0f, 15.0f, 15.0f, 0.0f) // Glowing White
     });
 
-    // 3. Yellow Tetrahedron (Right)
+    // 3. Yellow Tetrahedron
     scene.push_back({
-        glm::vec4( 2.5f, -1.0f, -5.0f, 0.0f), // Top Vertex
-        glm::vec4( 1.5f,  1.0f, -4.0f, 0.0f), // Base Left
-        glm::vec4( 3.5f,  1.0f, -4.0f, 0.0f), // Base Right
+        glm::vec4( 2.5f, -1.0f, -5.0f, 0.0f), 
+        glm::vec4( 1.5f,  1.0f, -4.0f, 0.0f), 
+        glm::vec4( 3.5f,  1.0f, -4.0f, 0.0f), 
         glm::vec4( 2.5f,  1.0f, -6.0f, 0.0f), 
-        glm::vec4(0.8f, 0.8f, 0.1f, 2.0f)
+        glm::vec4(0.8f, 0.8f, 0.1f, 2.0f), 
+        glm::vec4(0.0f) 
     });
-
 
     VkDeviceSize bufferSize = sizeof(Object) * scene.size();
 
